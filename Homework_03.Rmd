@@ -1,0 +1,424 @@
+---
+title: "HW 3"
+author: "Tara Ahi"
+date: "Feb 13 2022"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(tidyverse)
+library(readxl)
+library(knitr)
+library(ggplot2)
+library(dplyr)
+library(janitor)
+```
+
+# Question 0
+
+*Please add your name and the date to the R Markdown YAML header.
+
+# Question 1 
+
+### a) 
+
+Read in the SAT data `sat_data.xls`. This data has information by state on the average verbal and math scores on the SAT for 2004 and 2005, and lists the participation percentage and region of each state. The SAT is an exam used for college applications, and higher scores imply better performance. Each section was scored from 200 to 800 in 2005.*
+
+Clean the variable names to be easier to work with. Assume that "MathSAT_2005...5" refers to the math scores in 2005 and "MathSAT_2005...7" refers to the math scores in 2004.
+
+```{r upload and clean sat data}
+sat_data = read_excel("data/sat_data.xls")
+
+#view(sat_data)
+
+sat_data_cleaned = sat_data %>% 
+  clean_names() %>% 
+  rename(math_sat_2005 = math_sat_2005_5,
+         math_sat_2004 = math_sat_2005_7)
+```
+### b)
+
+Once the data has been read in and cleaned, creating two new variables which calculate the total SAT score for 2004 and 2005 for each state. 
+
+```{r total score variables}
+sat_data_cleaned = mutate(sat_data_cleaned,
+                          total_sat_2004 = math_sat_2004+verbal_sat_2004,
+                          total_sat_2005 = math_sat_2005+verbal_sat_2005)
+
+view(sat_data_cleaned)
+```
+
+
+### c) 
+
+Was there a relationship between verbal and math SAT scores in 2005? Create a graph to evaluate this question, and be sure to include appropriate labels for the axes. Comment on the relationship you see (or don't see). 
+
+```{r score relationships}
+ggplot(data = sat_data_cleaned) +
+  geom_point(aes(x = verbal_sat_2005, y = math_sat_2005), color = "violet") +
+  theme_minimal() +
+  labs(title = "SAT Math and Verbal Scores in 2005", x = "Math Scores", y = "Verbal Scores")
+```
+
+**There appears to be a positive, linear correlation between math and verbal SAT scores in 2005.**
+
+### d) 
+
+Calculate the average total score by region in 2004 and 2005. Which region had the lowest performance in 2004? Which had the best performance in 2004? What about 2005? You can refer to the regions using the abbreviations from the dataset. You can use `kable()` to print out and refer to your results. 
+
+```{r region avgs}
+region_avgs = sat_data_cleaned %>% 
+  group_by(region) %>% 
+  summarize(total_mean_2004 = mean(total_sat_2004),
+            total_mean_2005 = mean(total_sat_2005))
+
+kable(region_avgs)
+```
+
+#### Results
+The region with the worst performance in 2004 was in the **SA** region with a score of 1003.22. 
+The region with the worst performance in 2005 was again the **SA** region with a score of 1006.11.
+The region with the best performance in 2004 was **WNC** with a score of 1176.429. 
+The region with the best performance in 2005 was again **WNC** with a score of 1181.143.
+
+### e) 
+Use the `case_when` function to create a new participation variable with three groups:
+
+- "low" for participation less than 50% 
+
+- "medium" for participation between 50% and 75% 
+
+- "high" for participation higher than 75% 
+
+```{r grouped vars}
+sat_updated = sat_data_cleaned %>% 
+  mutate(participation_category = case_when(participation_pct < 50 ~ "low",
+                                            participation_pct >= 50 & participation_pct <= 75 ~ "medium",
+                                            participation_pct > 75 ~ "high",
+                                            TRUE ~ NA_character_))
+#view(sat_updated) to be sure new categories are there
+```
+
+### f) 
+
+Create a heatmap showing average performance in 2005 by region and your new participation variable. To do this, make a `ggplot` with `geom_tile`. The x aesthetic should be mapped to participation, the y aesthetic should be mapped to region, and the fill aesthetic should be mapped to performance. The geom_tile() geom will automatically calculate the average.  
+
+
+```{r plot heatmap}
+ggplot(data = sat_updated) +
+  geom_tile(aes(x = participation_category, y = region, fill = total_sat_2005))
+```
+
+### g)
+
+Improve the visualization of your heatmap by doing the following:
+
+(1) Ensure that the plot has an appropriate title and that both axes and the legend are properly labeled. 
+(2) Make sure the participation groups are presented in a logical order.
+(3) Use a `theme()` statement to remove the grey panel background.
+(4) Use a `theme()` statement to increase the axis text size to 14.
+
+```{r nicer heatmap}
+sat_updated2 = sat_updated %>% 
+  mutate(participation_cat_level = factor(participation_category,
+                                          levels = c("low", "medium", "high")))
+
+ggplot(data = sat_updated2) +
+  geom_tile(aes(x = participation_cat_level, y = region, fill = total_sat_2005)) +
+  labs(title = "Participation in SAT by Region and SAT Score",
+       x = "Region Participation", y = "Region", fill = "SAT Score")
+```
+
+
+# Question 2
+
+It seems like it was very popular to create 3D bar graphs for studies of cancer genes in the mid 2000's. Here is another visualization from a peer-reviewed publish paper:
+
+![](cancer_3d.png)
+__Why was this so popular? No idea... but thankfully times have changed!__
+
+### a)
+
+I scraped the data from this figure so we could make a more modern version of this visualization. Load the cancer gene data from the "cancer_genes.csv" file, and make sure you check the data for any issues.
+
+```{r load cancer genes}
+cancer_data = read_csv("data/cancer_genes.csv", skip = 2) %>% 
+  filter(!is.na(hyper_methylation))
+```
+
+### b)
+
+Use what you learned from the SAT heatmap to create a heatmap visualization of hyper methylation for each tumor type + gene combination. Make sure your x-axis, y-axis, and fill legend are labeled correctly and give your plot a title. 
+
+```{r cancer data heatmap}
+ggplot(data = cancer_data) +
+  geom_tile(aes(x = tumor_type, y = gene, fill = hyper_methylation)) +
+  labs(title = "Hypermethylation by Tumor Type and Gene Combination", x = "Tumor Type", y = "Gene", fill = "Hypermethylation", color = "Hypermethylation") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.7))
+
+```
+
+### c)
+
+Add `theme(axis.text.x = element_text(angle = 90))` to your plot -- what did this theme option do?
+
+```{r axis angles}
+ggplot(data = cancer_data) +
+  geom_tile(aes(x = tumor_type, y = gene, fill = hyper_methylation)) +
+  labs(title = "Hypermethylation by Tumor Type and Gene Combination", x = "Tumor Type", y = "Gene", fill = "Hypermethylation", color = "Hypermethylation") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90))
+
+```
+
+This theme option rotated the labels on the x-axis by 90 degrees, which makes it easier to read (I had originally put them at 45 degrees for this purpose). 
+
+### d)
+
+Now add `scale_fill_gradient(high = "white", low = "darkred")` to your heatmap. What did this code do? Does it make sense to have `high = "white"` and `low = "darkred"`? If you think it does, leave it -- otherwise make a change that you think produces a better visualization.
+
+```{r heatmap colors}
+ggplot(data = cancer_data) +
+  geom_tile(aes(x = tumor_type, y = gene, fill = hyper_methylation)) +
+  labs(title = "Hypermethylation by Tumor Type and Gene Combination", x = "Tumor Type", y = "Gene", fill = "Hypermethylation", color = "Hypermethylation") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  scale_fill_gradient(high = "darkred", low = "maroon")
+
+```
+This addition changed the colors in the grid, with white referring to more methylation and dark red referring to less methylation. This isn't how we usually read visuals, so I switched a darker color for high and a lighter color for low (and chose prettier colors).
+
+# Question 3
+
+You have received a dataset of treatment compliance for a 10-week study on physical activity and cognitive functioning. This data set can be found in the `activity_compliance.csv` file. 
+
+### a)
+
+Load the compliance data in from the `activity_compliance.csv` file.
+
+```{r read compliance}
+compliance_data = read_csv("data/activity_compliance.csv")
+```
+
+### b)
+
+The data set contains missing compliance observations. For the purpose of this exercise, we will treat missing data as non-compliant. Change all NA compliance values to 0 and use this updated dataset for the following problems.
+
+```{r cleaning compliance}
+compliance_clean = compliance_data
+
+compliance_clean[is.na(compliance_clean)] = 0
+```
+
+### c)
+
+Create a summary data frame of the proportion of compliant individuals per week and its 95% confidence interval. Report it using the `kable()` function.
+
+```{r summary}
+compliance_proportion = compliance_clean %>% 
+  group_by(compliant, week) %>% 
+  summarize(n = n()) %>% 
+  group_by(week) %>% 
+  mutate(weekly_prop = n / sum(n)) %>% 
+  mutate(UL = weekly_prop + (1.96 * sqrt(weekly_prop*(1 - weekly_prop)/sum(n))),
+         LL = weekly_prop + (1.96 * sqrt(weekly_prop*(1 - weekly_prop)/sum(n))))
+
+kable(compliance_proportion)
+```
+
+### d)
+
+The code skeleton below will create a graph that shows the proportion of compliant individuals and it's 95% confidence interval per week once you plug in your data frame and the variables for x, y, ymax, and ymin. The ymax and ymin aesthetics should be mapped to the upper and lower bounds of your calculated 95% Confidence interval.
+
+Once you have plugged in these values, you should see a plot of proportions with error bars marking the 95% confidence intervals. We have also added additional statements to improve our plot. In a series of sentences, please describe what each statement does. You need to describe the 8 statements starting with `geom_pointrange` and ending with `annotate`. Hint: If you are stuck, try removing a statement and seeing what changes!
+
+__When are done filling in the code, make sure to change the code chunk option below to eval = TRUE__
+
+
+```{r compliance graph}
+
+ggplot(data = compliance_proportion) +   
+  # Fill in the summary data frame you create
+  geom_pointrange(aes(x = week, y = weekly_prop, ymax = UL, ymin = LL)) +  
+  # This creates a graph that shows weekly proportions over time (weeks), with the ymax being the upper limits and the ymin being lower limits
+  geom_line(aes(x = week, y = weekly_prop), linetype = "dotted") + 
+  # This shows compliance proportions over time (x as weeks and y as proportion values) and connects the pointrange values with a dotted line
+  geom_hline(aes(yintercept = 0.65), color = "darkblue", linetype = "dashed") + 
+  # This creates a dark blue line across the graph reflecting the target compliance value
+  theme_bw() +
+  # This simplifies the aesthetics of the graph
+  labs(title = "Observed Proportion of Compliant Individuals by Week", x = "Week", y = "Proportion") +
+  # This gives a chart title and labels the x and y axes
+  scale_x_continuous(breaks = 1:10, labels = paste("Week", 1:10)) +
+  # This changes the look of the x axis to have intervals of one unit and puts in labels
+  scale_y_continuous(limits = 0:1) +
+  # This implements a limit for the y axis to go up to
+  annotate(geom = "text", x = 8, y = 0.9, label = "Target Compliance = 0.65", color = "darkblue")
+  # This adds a label referring to the target compliance line and sets a color and location for the label
+
+
+
+```
+
+# Question 4
+
+### a) 
+
+Create a dataset made up of 100,000 random samples from a standard normal distribution (mean = 0, standard deviation = 1).
+
+```{r random dataset}
+normal_samp = rnorm(n = 100000, mean = 0, sd = 1)
+
+sample_data = tibble(rand = normal_samp)
+
+```
+
+### b) 
+
+Make an exploratory histogram and box-plot of the dataset from part (a). These two graphs can be simple and are meant to be produced quickly in a few lines of code, but the histogram should have enough bins to give a good sense of the distribution. __In your opinion, which of these two plot is more informative/easier to interpret?__
+
+```{r random graphs}
+#exploratory histogram
+ggplot(data = sample_data) +
+  geom_histogram(aes(x = rand))
+
+#box plot
+ggplot(data = sample_data) +
+  geom_boxplot(aes(x = rand))
+```
+
+### c) 
+
+Improve one of your two graphs from (b) by: (1) using a preset theme of your choice, (2) including appropriate labels for the x and y axes, (3) adding titles, (4), and setting both color and fill aesthetics. 
+
+```{r prettier random graph}
+ggplot(data = sample_data) +
+  geom_histogram(aes(x = rand), color = "light blue", fill = "turquoise") +
+  labs(title = "Histogram of Random Numbers", x = "Numbers Generated", y = "Count of Numbers") + 
+  theme_light()
+```
+
+
+# Question 5
+
+We will be using the now-familiar biometrics dataset which contains nine skeletal measurements and twelve girth measurements along with age, weight, height, and gender. 
+
+### a) 
+
+Load the biometrics data in from `biometrics.xls`.
+
+```{r load biometrics}
+biometrics_data = read_excel("data/biometrics.xls", sheet = 2)
+```
+
+### b) 
+
+Create a smaller data-set that only includes `id`, `height`, `weight`, `gender`, and all the `girth` measurements. 
+
+```{r narrowed dataset}
+subset_df = biometrics_data %>% 
+  select(id, height, weight, gender, shoulder_girth, chest_girth, waist_girth, thigh_girth, navel_girth, hip_girth, bicep_girth_flexed, forearm_girth, knee_girth, calf_girth, ankle_girth, wrist_girth)
+#could also use matches("girth")
+```
+
+
+### c) 
+
+Create a new variable called `bmi` in this smaller dataset. BMI can be calculated as weight (in kg) divided by the square of height (in m). Notice that the height measurements have been recorded in cm. BMI is usually rounded to 1 decimal place -- so use the `round()` function. 
+
+```{r}
+biometrics_bmi = subset_df %>% 
+  mutate(bmi = round(weight/(height/100)^2, 1))
+#put height in meters from cm
+```
+
+### d) 
+
+A researcher you are working with is interested in a new measurement which is the sum of navel girth and thigh girth. Create this variable and graph its distribution. 
+
+```{r navel+thigh}
+navelthigh = biometrics_bmi %>% 
+  mutate(navelthighsum = navel_girth + thigh_girth)
+
+ggplot(data = navelthigh) +
+  geom_histogram(aes(x = navelthighsum), bins = 50)
+
+```
+
+### e) 
+
+The same researcher is interested in whether there is a relationship between continuous BMI and their new navel + thigh girth variable. Plot a graph that will help you explore this potential relationship. Do you see a relationship?
+
+```{r scatterplot}
+ggplot(data = navelthigh) +
+  geom_point(aes(x = bmi, y = navelthighsum))
+
+```
+There seems to be a positive correlation between BMI and the navel + thigh girth sum. 
+
+### f) 
+
+You're now interested in the proportion of individuals who would be classified into several BMI categories: 
+
+- Underweight: BMI less than 18.5
+
+- Normal: BMI greater than or equal to 18.5 but less than 25
+
+- Overweight: BMI greater than or equal to 25 but less than 30
+
+- Obese: BMI greater than or equal to 30.
+
+Create a categorical variable that reflects these BMI categories. 
+
+```{r bmi categories}
+biometrics_bmi_cats = navelthigh %>% 
+  mutate(bmi_cat = case_when(bmi < 18.5 ~ "Underweight",
+                             bmi >= 18.5 & bmi < 25 ~ "Normal",
+                             bmi >= 25 & bmi < 30 ~ "Overweight",
+                             bmi >= 30 ~ "Obese"))
+```
+
+### g) 
+
+Report the proportion of individuals who are in each BMI category within each gender. Please use the `kable()` function to print your summary.
+
+```{r bmi by gender}
+bmi_gender = biometrics_bmi_cats %>% 
+  group_by(bmi_cat, gender) %>% 
+  summarize(n = n()) %>% 
+  group_by(gender) %>% 
+  mutate(bmi_proportion = n / sum(n))
+
+kable(bmi_gender)
+
+```
+
+### h) 
+
+Create a faceted scatterplot of BMI by navel + thigh girth by both BMI category and gender.
+
+Ensure that your graph:
+
+(1) Has an appropriate title and that both axes are properly labeled. 
+(2) Presents the BMI groups in a logical (ascending or descending) order.
+
+```{r faceted scatterplot}
+biometric_faceted = biometrics_bmi_cats %>% 
+  mutate(bmi_cat_ordered = factor(bmi_cat,
+                                  level = c("Underweight", "Normal", "Overweight", "Obese")))
+
+ggplot(data = biometric_faceted) +
+  geom_point(aes(x = bmi, y = navelthighsum)) +
+  theme_light() +
+  facet_grid(bmi_cat_ordered ~ gender) +
+  labs(title = "Distribution of BMI by Navel + Thigh Girth by BMI Category and Gender", x = "BMI", y = "Navel + Thigh Girth") +
+  scale_color_manual(values = c("Female" = 'green', "Male" = 'yellow'))
+
+```
+
+
